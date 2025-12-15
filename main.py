@@ -101,6 +101,15 @@ async def is_plus(user_id: int) -> bool:
     u = await get_user(user_id)
     return u.get("membership", False)
 
+def create_user(user_id):
+    users = load_users()
+    users[user_id] = {
+        "wallet": 1000,
+        "bank": 0,
+        "inventory": []
+    }
+    save_users(users)
+
 # -----------------------------
 # Server helpers (premium, prefix, disabled commands)
 # -----------------------------
@@ -203,6 +212,62 @@ async def deliver_premium_key_dm(user: discord.User, key: str, months: int = 1):
     except Exception:
         # ignore if can't DM
         pass
+
+# -----------------------------
+# Shop Items
+# -----------------------------
+SHOP_ITEMS = {
+    "food": {
+        "price": 50,
+        "emoji": "🍔",
+        "description": "Basic food to survive and do work efficiently"
+    },
+    "water": {
+        "price": 25,
+        "emoji": "💧",
+        "description": "Clean drinking water"
+    },
+    "bed": {
+        "price": 500,
+        "emoji": "🛏️",
+        "description": "Sleep better, increases daily rewards"
+    },
+    "phone": {
+        "price": 1200,
+        "emoji": "📱",
+        "description": "Access online features and social actions"
+    },
+    "tv": {
+        "price": 2500,
+        "emoji": "📺",
+        "description": "Entertainment item, boosts happiness"
+    },
+    "laptop": {
+        "price": 5000,
+        "emoji": "💻",
+        "description": "Required for advanced jobs"
+    },
+    "bike": {
+        "price": 8000,
+        "emoji": "🚲",
+        "description": "Travel faster, unlocks delivery jobs"
+    },
+    "car": {
+        "price": 35000,
+        "emoji": "🚗",
+        "description": "Luxury transport, boosts work income"
+    },
+    "house": {
+        "price": 150000,
+        "emoji": "🏠",
+        "description": "Own a house, unlocks passive income"
+    },
+    "villa": {
+        "price": 500000,
+        "emoji": "🏡",
+        "description": "High-end home with big perks"
+    }
+}
 
 # -----------------------------
 # Premium purchase (placeholder) & activation commands
@@ -555,6 +620,62 @@ async def slash_profile(interaction: discord.Interaction, member: Optional[disco
     embed.add_field(name="Job", value=user.get('job') or "Unemployed", inline=False)
     embed.add_field(name="Businesses", value=", ".join(user.get('businesses',{}).keys()) or "None", inline=False)
     await interaction.response.send_message(embed=embed)
+
+# -----------------------------
+# Shop Commands
+# -----------------------------
+@bot.tree.command(name="shop", description="View all available real-life items")
+async def shop(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="🛒 VRTEX Shop",
+        description="Buy useful real-life items to improve your economy",
+        color=discord.Color.blue()
+    )
+
+    for item, data in SHOP_ITEMS.items():
+        embed.add_field(
+            name=f"{data['emoji']} {item.title()}",
+            value=f"💰 **{data['price']:,} coins**\n{data['description']}",
+            inline=False
+        )
+
+    embed.set_footer(text="Use /buy <item> to purchase an item")
+    await interaction.response.send_message(embed=embed)
+
+@bot.tree.command(name="buy", description="Buy an item from the shop")
+async def buy(interaction: discord.Interaction, item: str):
+    item = item.lower()
+
+    if item not in SHOP_ITEMS:
+        await interaction.response.send_message(
+            "❌ That item doesn't exist in the shop.",
+            ephemeral=True
+        )
+        return
+
+    user_id = str(interaction.user.id)
+    users = load_users()
+
+    if user_id not in users:
+        create_user(user_id)
+        users = load_users()
+
+    price = SHOP_ITEMS[item]["price"]
+
+    if users[user_id]["wallet"] < price:
+        await interaction.response.send_message(
+            "❌ You don't have enough coins.",
+            ephemeral=True
+        )
+        return
+
+    users[user_id]["wallet"] -= price
+    users[user_id]["inventory"].append(item)
+    save_users(users)
+
+    await interaction.response.send_message(
+        f"✅ You bought **{item.title()}** for **{price:,} coins**!"
+    )
 
 # -----------------------------
 # Work & Jobs
